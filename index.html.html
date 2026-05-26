@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Чистый Воздух — Трекер и Контроль</title>
+  
+  <!-- Tailwind CSS для разметки (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons для современных иконок -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <style>
+    body {
+      background-color: #030712; /* Очень глубокий черный/slate-950 */
+      color: #f8fafc; /* Ультра-белый slate-50 для максимального контраста */
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      overflow-x: hidden;
+    }
+
+    /* Высококонтрастные карточки */
+    .contrast-card {
+      background-color: #0f172a; /* slate-900 */
+      border: 2px solid #334155; /* Четкая контрастная рамка slate-700 */
+      border-radius: 1rem;
+    }
+
+    /* Скроллбар */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #030712;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 3px;
+    }
+
+    /* Пульсация главной кнопки */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.96); opacity: 0.6; }
+      50% { transform: scale(1.06); opacity: 0.3; }
+      100% { transform: scale(0.96); opacity: 0.6; }
+    }
+    .pulse-effect::before {
+      content: '';
+      position: absolute;
+      width: 106%;
+      height: 106%;
+      border-radius: 50%;
+      border: 4px solid rgba(244, 63, 94, 0.5); /* Выразительный красный цвет опасности */
+      animation: pulse-ring 2s infinite ease-in-out;
+      z-index: -1;
+    }
+
+    /* Ripple эффект */
+    .ripple {
+      position: relative;
+      overflow: hidden;
+    }
+    .ripple-effect {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.4);
+      transform: scale(0);
+      animation: ripple-animation 0.5s linear;
+      pointer-events: none;
+    }
+    @keyframes ripple-animation {
+      to {
+        transform: scale(4);
+        opacity: 0;
+      }
+    }
+
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.25s ease-out forwards;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen pb-24">
+
+  <!-- ВСПЛЫВАЮЩИЙ ТОСТ ДЛЯ СИСТЕМНЫХ ОПОВЕЩЕНИЙ -->
+  <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900 border-2 border-slate-600 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transition-all duration-300 opacity-0 pointer-events-none translate-y-[-20px] max-w-[90%] w-max">
+    <span id="toast-icon"></span>
+    <span id="toast-message" class="text-sm font-bold"></span>
+  </div>
+
+  <!-- ШАПКА -->
+  <header class="bg-slate-950/95 backdrop-blur-md border-b-2 border-slate-800 sticky top-0 z-40 px-4 py-3 flex justify-between items-center max-w-md mx-auto w-full">
+    <div class="flex items-center space-x-2">
+      <div class="w-9 h-9 rounded-lg bg-rose-600 flex items-center justify-center shadow-lg shadow-rose-600/20">
+        <i data-lucide="skull" class="text-white w-5 h-5"></i>
+      </div>
+      <div>
+        <h1 class="font-extrabold text-base tracking-tight text-white">Чистый Воздух</h1>
+        <p class="text-[10px] text-rose-400 font-bold uppercase tracking-wider">Анти-табачный контроль</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center space-x-2">
+      <!-- Кнопка системных уведомлений -->
+      <button id="noti-toggle-btn" class="p-2 rounded-xl bg-slate-900 border-2 border-slate-700 text-slate-300 hover:text-white transition-colors" title="Включить уведомления">
+        <i data-lucide="bell-off" class="w-5 h-5" id="bell-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ОСНОВНОЙ КОНТЕНТ -->
+  <main class="flex-grow p-4 max-w-md mx-auto w-full space-y-4">
+
+    <!-- Вкладка 1: Главная (Дэшборд) -->
+    <section id="tab-main" class="tab-content active space-y-4">
+
+      <!-- КНОПКА ДОБАВЛЕНИЯ НА ЭКРАН (WIDGET / PWA) -->
+      <div id="pwa-install-banner" class="hidden contrast-card p-3 bg-gradient-to-r from-emerald-950/40 to-slate-900 border-emerald-500/50 flex justify-between items-center">
+        <div class="flex items-center space-x-2.5">
+          <div class="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg">
+            <i data-lucide="smartphone" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h4 class="text-xs font-bold text-white">Добавить виджет быстрого ввода</h4>
+            <p class="text-[10px] text-slate-300">На главный экран телефона</p>
+          </div>
+        </div>
+        <button id="btn-pwa-install" class="px-3 py-1.5 bg-emerald-500 text-slate-950 font-black text-xs rounded-lg active:scale-95 transition-all">
+          Добавить
+        </button>
+      </div>
+
+      <!-- Мотивационная плашка дня -->
+      <div class="contrast-card p-4 relative overflow-hidden bg-slate-900">
+        <div class="absolute -right-6 -bottom-6 text-slate-800/20 pointer-events-none">
+          <i data-lucide="alert-circle" class="w-24 h-24"></i>
+        </div>
+        <div class="flex items-start space-x-3">
+          <div class="p-2 bg-rose-500/10 text-rose-400 rounded-lg shrink-0 mt-0.5">
+            <i data-lucide="activity" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-xs font-bold text-rose-400 uppercase tracking-wider">Важное напоминание</h3>
+            <p id="motivation-text" class="text-slate-100 text-sm mt-1 font-semibold leading-relaxed">
+              Каждая сигарета разрушает ваше здоровье. Начните контролировать этот процесс.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Таймер времени без курения -->
+      <div class="contrast-card p-4 text-center bg-slate-900">
+        <span class="text-xs text-slate-300 font-bold block mb-1">Вы продержались без дыма:</span>
+        <div id="clean-timer" class="text-2xl font-black text-emerald-400 tracking-wider">
+          00д : 00ч : 00м : 00с
+        </div>
+        <p class="text-[10px] text-slate-400 mt-1 font-medium">Время восстановления организма с последней сигареты</p>
+      </div>
+
+      <!-- Карточки сегодняшних трат и сигарет -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="contrast-card p-4 flex flex-col justify-between bg-slate-900">
+          <span class="text-xs text-slate-300 font-bold block">Выкурено сегодня</span>
+          <div class="flex items-baseline space-x-2 mt-1">
+            <span id="stat-today" class="text-3xl font-black text-white">0</span>
+            <span class="text-xs text-slate-400 font-bold">из <span id="stat-limit-badge" class="text-white">5</span></span>
+          </div>
+          <div class="w-full bg-slate-800 h-2.5 rounded-full mt-2.5 overflow-hidden border border-slate-700">
+            <div id="limit-progress-bar" class="bg-emerald-500 h-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="contrast-card p-4 flex flex-col justify-between bg-slate-900">
+          <span class="text-xs text-slate-300 font-bold block">Потрачено сегодня</span>
+          <div class="flex items-baseline space-x-1.5 mt-1">
+            <span id="stat-money-spent-today" class="text-3.5xl font-black text-rose-400">0</span>
+            <span class="text-sm font-black text-rose-500">₪</span>
+          </div>
+          <span id="stat-life-lost-today" class="text-[10px] text-rose-300 font-bold mt-2 block">
+            -0 мин. жизни потеряно
+          </span>
+        </div>
+      </div>
+
+      <!-- ЦЕНТРАЛЬНАЯ КНОПКА КЛИКА -->
+      <div class="flex flex-col items-center justify-center py-4">
+        <button id="btn-add-smoke" class="ripple pulse-effect w-44 h-44 rounded-full bg-gradient-to-tr from-rose-700 to-rose-500 hover:from-rose-600 hover:to-rose-400 shadow-2xl shadow-rose-900/50 active:scale-95 transition-all duration-100 flex flex-col items-center justify-center relative border-4 border-slate-950">
+          <i data-lucide="plus" class="w-16 h-16 text-white drop-shadow-lg"></i>
+          <span class="text-white text-xs font-black uppercase tracking-widest mt-1">Я закурил</span>
+        </button>
+
+        <!-- Кнопка отмены -->
+        <button id="btn-undo-smoke" class="mt-6 flex items-center space-x-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 border-2 border-slate-700 rounded-full text-xs font-bold text-slate-100 transition-all active:scale-95">
+          <i data-lucide="undo-2" class="w-4 h-4 text-rose-400"></i>
+          <span>Отменить случайное нажатие</span>
+        </button>
+      </div>
+
+      <!-- Секция помощи по установке виджета на экран (Инструкция) -->
+      <div class="contrast-card p-4 bg-slate-900 space-y-3">
+        <h4 class="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center space-x-1.5">
+          <i data-lucide="help-circle" class="w-4 h-4 text-emerald-400"></i>
+          <span>Как добавить виджет на экран?</span>
+        </h4>
+        <div class="text-[11px] text-slate-300 space-y-2 leading-relaxed">
+          <p><strong>Для Android (Chrome):</strong> Нажмите на три точки в верхнем правом углу браузера и выберите пункт <strong>«Добавить на гл. экран»</strong> или нажмите кнопку выше.</p>
+          <p><strong>Для iOS (Safari):</strong> Нажмите кнопку <strong>«Поделиться»</strong> (стрелка вверх внизу экрана) и выберите <strong>«На экран "Домой"»</strong>.</p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Вкладка 2: Статистика -->
+    <section id="tab-stats" class="tab-content space-y-4">
+      <h2 class="text-lg font-black text-white flex items-center space-x-2">
+        <i data-lucide="bar-chart-3" class="text-rose-500 w-5 h-5"></i>
+        <span>Анализ расходов и ущерба</span>
+      </h2>
+
+      <!-- Сводная карточка за всё время (Финансы и Количества) -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="contrast-card p-3.5 bg-slate-900 text-center">
+          <span class="text-[11px] text-slate-300 font-bold block">Всего сигарет</span>
+          <span id="total-smoked" class="text-2xl font-black text-white block mt-1">0</span>
+          <span id="total-smoked-packs" class="text-[10px] text-slate-400 block font-semibold mt-0.5">0.0 пачек</span>
+        </div>
+        <div class="contrast-card p-3.5 bg-slate-900 text-center border-rose-900/60">
+          <span class="text-[11px] text-rose-400 font-bold block">Потрачено всего</span>
+          <div class="flex items-center justify-center space-x-1 mt-1">
+            <span id="total-money-spent" class="text-2xl font-black text-rose-400">0</span>
+            <span class="text-sm font-black text-rose-500">₪</span>
+          </div>
+          <span class="text-[10px] text-slate-400 block font-semibold mt-0.5">Выкинуто на дым</span>
+        </div>
+      </div>
+
+      <!-- Новые карточки токсикологии и разрушения здоровья -->
+      <div class="contrast-card p-4 bg-slate-900 space-y-3">
+        <h3 class="text-xs font-black text-rose-400 uppercase tracking-wider flex items-center space-x-1.5">
+          <i data-lucide="biohazard" class="w-4 h-4"></i>
+          <span>Нанесенный вред здоровью</span>
+        </h3>
+        
+        <div class="grid grid-cols-2 gap-2.5">
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <span class="text-[9px] text-slate-400 block font-bold">Введено никотина</span>
+            <span id="health-nicotine" class="text-sm font-black text-amber-400 block mt-0.5">0 мг</span>
+            <span class="text-[8px] text-slate-500 block">Накапливается в сосудах</span>
+          </div>
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <span class="text-[9px] text-slate-400 block font-bold">Осело смолы в легких</span>
+            <span id="health-tar" class="text-sm font-black text-rose-500 block mt-0.5">0 мг</span>
+            <span class="text-[8px] text-slate-500 block">Канцерогенный налет</span>
+          </div>
+        </div>
+
+        <div class="bg-rose-950/20 p-3 rounded-xl border border-rose-900/40 text-center">
+          <span class="text-[10px] text-rose-300 block font-bold">Общее сокращение жизни</span>
+          <span id="total-life-lost-alltime" class="text-base font-black text-white mt-1 block">
+            0 дней, 0 часов, 0 минут
+          </span>
+        </div>
+      </div>
+
+      <!-- График за неделю (CSS Flexbox) -->
+      <div class="contrast-card p-4 bg-slate-900">
+        <h3 class="text-xs font-black text-slate-200 uppercase tracking-wider mb-4">Активность за последние 7 дней</h3>
+        
+        <div class="h-40 flex items-end justify-between space-x-2 pt-6 pb-2" id="chart-container">
+          <!-- Колонки графика генерируются динамически через JS -->
+        </div>
+        
+        <div class="flex justify-between text-[10px] text-slate-400 font-bold border-t border-slate-800 pt-2 px-1" id="chart-labels">
+          <!-- Подписи дней недели -->
+        </div>
+      </div>
+
+      <!-- История по дням -->
+      <div class="contrast-card p-4 bg-slate-900">
+        <h3 class="text-xs font-black text-slate-200 uppercase tracking-wider mb-3">Детализация по дням</h3>
+        <div id="history-list" class="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+          <p class="text-sm text-slate-500 text-center py-4">Данные отсутствуют. Нажмите «Я закурил» на главном экране.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Вкладка 3: Здоровье -->
+    <section id="tab-health" class="tab-content space-y-4">
+      <h2 class="text-lg font-black text-white flex items-center space-x-2">
+        <i data-lucide="shield-check" class="text-emerald-400 w-5 h-5"></i>
+        <span>Восстановление организма</span>
+      </h2>
+      <p class="text-xs text-slate-300 leading-relaxed font-semibold">
+        Каждый час без курения запускает глубокие процессы детоксикации. Вот текущее состояние ваших внутренних систем:
+      </p>
+
+      <!-- Контейнер со шкалами здоровья -->
+      <div class="space-y-3.5" id="health-indicators">
+        <!-- Индикатор 1 -->
+        <div class="contrast-card p-4 bg-slate-900">
+          <div class="flex justify-between items-center text-xs mb-1.5">
+            <span class="font-black text-slate-200">Нормализация давления и ЧСС</span>
+            <span class="text-emerald-400 font-black" id="health-val-pulse">0%</span>
+          </div>
+          <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300" id="health-bar-pulse" style="width: 0%"></div>
+          </div>
+          <span class="text-[9px] text-slate-400 mt-1.5 block font-bold">Период: первые 20 минут чистого воздуха</span>
+        </div>
+
+        <!-- Индикатор 2 -->
+        <div class="contrast-card p-4 bg-slate-900">
+          <div class="flex justify-between items-center text-xs mb-1.5">
+            <span class="font-black text-slate-200">Очищение крови от угарного газа (CO)</span>
+            <span class="text-emerald-400 font-black" id="health-val-co">0%</span>
+          </div>
+          <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300" id="health-bar-co" style="width: 0%"></div>
+          </div>
+          <span class="text-[9px] text-slate-400 mt-1.5 block font-bold">Период: 12 часов без никотинового дыма</span>
+        </div>
+
+        <!-- Индикатор 3 -->
+        <div class="contrast-card p-4 bg-slate-900">
+          <div class="flex justify-between items-center text-xs mb-1.5">
+            <span class="font-black text-slate-200">Обострение обоняния и вкуса</span>
+            <span class="text-emerald-400 font-black" id="health-val-taste">0%</span>
+          </div>
+          <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300" id="health-bar-taste" style="width: 0%"></div>
+          </div>
+          <span class="text-[9px] text-slate-400 mt-1.5 block font-bold">Период: 48 часов полного воздержания</span>
+        </div>
+
+        <!-- Индикатор 4 -->
+        <div class="contrast-card p-4 bg-slate-900">
+          <div class="flex justify-between items-center text-xs mb-1.5">
+            <span class="font-black text-slate-200">Снижение бронхоспазма (дыхание)</span>
+            <span class="text-emerald-400 font-black" id="health-val-breath">0%</span>
+          </div>
+          <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300" id="health-bar-breath" style="width: 0%"></div>
+          </div>
+          <span class="text-[9px] text-slate-400 mt-1.5 block font-bold">Период: 72 часа без сигаретного смога</span>
+        </div>
+
+        <!-- Индикатор 5 -->
+        <div class="contrast-card p-4 bg-slate-900">
+          <div class="flex justify-between items-center text-xs mb-1.5">
+            <span class="font-black text-slate-200">Восстановление капиллярного кровотока</span>
+            <span class="text-emerald-400 font-black" id="health-val-circ">0%</span>
+          </div>
+          <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-800">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300" id="health-bar-circ" style="width: 0%"></div>
+          </div>
+          <span class="text-[9px] text-slate-400 mt-1.5 block font-bold">Период: 2 недели бережного ухода за сосудами</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Вкладка 4: Настройки -->
+    <section id="tab-settings" class="tab-content space-y-4">
+      <h2 class="text-lg font-black text-white flex items-center space-x-2">
+        <i data-lucide="settings" class="text-emerald-400 w-5 h-5"></i>
+        <span>Настройки калькулятора</span>
+      </h2>
+
+      <!-- Форма персональных настроек -->
+      <div class="contrast-card p-4 space-y-4 bg-slate-900">
+        <div>
+          <label class="text-xs text-slate-300 font-bold block mb-1">Дневной лимит сигарет:</label>
+          <input type="number" id="cfg-limit" class="w-full bg-slate-950 border-2 border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:outline-none focus:border-emerald-500" value="5" min="1">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-slate-300 font-bold block mb-1">Стоимость пачки (₪):</label>
+            <input type="number" id="cfg-cost" class="w-full bg-slate-950 border-2 border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:outline-none focus:border-emerald-500" value="35" min="0" step="any">
+          </div>
+          <div>
+            <label class="text-xs text-slate-300 font-bold block mb-1">Штук в пачке:</label>
+            <input type="number" id="cfg-pack-size" class="w-full bg-slate-950 border-2 border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:outline-none focus:border-emerald-500" value="20" min="1">
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs text-rose-400 font-bold block mb-1">Стоимость одной сигареты (₪):</label>
+          <input type="number" id="cfg-single-cost" class="w-full bg-slate-950 border-2 border-slate-600 rounded-xl px-3 py-2 text-rose-300 font-black focus:outline-none focus:border-rose-500" value="1.75" min="0" step="any">
+          <p class="text-[9px] text-slate-400 mt-1">Можно задать вручную или она рассчитается сама на основе стоимости пачки.</p>
+        </div>
+
+        <button id="btn-save-settings" class="w-full mt-2 py-3 bg-emerald-500 hover:bg-emerald-600 active:scale-95 transition-all text-slate-950 font-black rounded-xl text-sm">
+          Сохранить конфигурацию
+        </button>
+      </div>
+
+      <!-- Зона сброса данных -->
+      <div class="contrast-card p-4 border-rose-900 bg-rose-950/10">
+        <h3 class="text-xs font-black text-rose-400 uppercase tracking-wider mb-1">Полный сброс</h3>
+        <p class="text-[11px] text-slate-300 mb-3 leading-relaxed">Очистит всю вашу сохраненную историю выкуренных сигарет без возможности отката.</p>
+        <button id="btn-reset-data" class="px-4 py-2 bg-rose-600/30 hover:bg-rose-600/50 border-2 border-rose-500/50 rounded-xl text-xs font-black text-rose-300 transition-colors">
+          Очистить все логи
+        </button>
+      </div>
+
+      <!-- Раздел разработчика (для PWA / APK) -->
+      <div class="contrast-card p-4 bg-slate-950 space-y-3">
+        <h3 class="text-xs font-black text-slate-300 flex items-center space-x-1.5 uppercase tracking-wider">
+          <i data-lucide="code-xml" class="w-4 h-4 text-emerald-400"></i>
+          <span>Параметры PWA / APK</span>
+        </h3>
+        <p class="text-[11px] text-slate-400 leading-relaxed">Для сборки нативного приложения Android (через CLI Bubblewrap или Capacitor) скопируйте вспомогательные файлы:</p>
+        
+        <div class="space-y-2">
+          <button onclick="copyDeveloperAsset('manifest')" class="w-full flex justify-between items-center px-3 py-2.5 bg-slate-900 hover:bg-slate-800 rounded-xl text-xs text-slate-300 border border-slate-700 transition-colors">
+            <span>Скопировать manifest.json</span>
+            <i data-lucide="copy" class="w-4 h-4 text-emerald-400"></i>
+          </button>
+          <button onclick="copyDeveloperAsset('sw')" class="w-full flex justify-between items-center px-3 py-2.5 bg-slate-900 hover:bg-slate-800 rounded-xl text-xs text-slate-300 border border-slate-700 transition-colors">
+            <span>Скопировать service-worker.js</span>
+            <i data-lucide="copy" class="w-4 h-4 text-emerald-400"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- НИЖНЯЯ ПАНЕЛЬ НАВИГАЦИИ -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-slate-950/95 backdrop-blur-md border-t-2 border-slate-800 py-2 px-4 flex justify-around items-center z-45 max-w-md mx-auto">
+    <button onclick="switchTab('main')" id="nav-main" class="flex flex-col items-center space-y-1 text-emerald-400 transition-colors">
+      <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+      <span class="text-[10px] font-bold">Главная</span>
+    </button>
+    
+    <button onclick="switchTab('stats')" id="nav-stats" class="flex flex-col items-center space-y-1 text-slate-400 hover:text-white transition-colors">
+      <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+      <span class="text-[10px] font-medium">Статистика</span>
+    </button>
+
+    <button onclick="switchTab('health')" id="nav-health" class="flex flex-col items-center space-y-1 text-slate-400 hover:text-white transition-colors">
+      <i data-lucide="shield-pulse" class="w-5 h-5"></i>
+      <span class="text-[10px] font-medium">Здоровье</span>
+    </button>
+
+    <button onclick="switchTab('settings')" id="nav-settings" class="flex flex-col items-center space-y-1 text-slate-400 hover:text-white transition-colors">
+      <i data-lucide="settings" class="w-5 h-5"></i>
+      <span class="text-[10px] font-medium">Настройки</span>
+    </button>
+  </nav>
+
+  <!-- ЛОГИКА ПРИЛОЖЕНИЯ -->
+  <script>
+    // База мотивирующих фраз
+    const motivationPhrases = [
+      "Каждая выкуренная сигарета забирает 11 минут вашей драгоценной жизни.",
+      "Никотин сужает ваши сосуды и повышает риск инфаркта в 4 раза. Остановитесь!",
+      "Бросить курить — это не лишение, это долгожданное освобождение от рабства.",
+      "Ваш организм скажет спасибо уже через пару часов свободного дыхания.",
+      "В сигаретном дыму содержится мышьяк, свинец и угарный газ. Не дышите этим!",
+      "Сэкономленные деньги можно потратить на классное путешествие или хобби.",
+      "Уже через 48 часов без курения ваши легкие начнут активно избавляться от слизи."
+    ];
+
+    // Глобальное состояние
+    let appState = {
+      history: {},       // Формат: { "YYYY-MM-DD": { count: X, timestamps: [...] } }
+      lastSmokeTime: null, // Timestamp последнего добавления
+      settings: {
+        limit: 5,        // Дневной предел
+        avgPerDay: 15,   // Среднее в день ранее
+        costPerPack: 35, // Стоимость пачки по умолчанию в шекелях
+        packSize: 20,    // Размер пачки
+        costPerCigarette: 1.75 // Стоимость одной сигареты в шекелях (35 / 20)
+      }
+    };
+
+    // Переменная для хранения PWA Prompt
+    let deferredPrompt = null;
+
+    // --- СТАРТ ПРИЛОЖЕНИЯ ---
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      loadData();
+      updateUI();
+      
+      // Обновление таймера и индикаторов здоровья каждую секунду
+      setInterval(updateCleanTimer, 1000);
+      updateCleanTimer();
+
+      setRandomMotivation();
+      setupEventListeners();
+      updateNotificationIcon();
+      setupPWAInstallation();
+    });
+
+    // --- СОХРАНЕНИЕ / ЗАГРУЗКА ---
+    function loadData() {
+      const stored = localStorage.getItem('smoke_tracker_data_v2');
+      if (stored) {
+        try {
+          appState = JSON.parse(stored);
+          // Восстановление отсутствующих ключей
+          if (!appState.settings) {
+            appState.settings = { limit: 5, avgPerDay: 15, costPerPack: 35, packSize: 20, costPerCigarette: 1.75 };
+          }
+          if (appState.settings.costPerCigarette === undefined) {
+            appState.settings.costPerCigarette = 1.75;
+          }
+          if (!appState.history) appState.history = {};
+        } catch (e) {
+          console.error("Ошибка чтения localStorage.");
+        }
+      } else {
+        // Симулируем последнюю сигарету 2 часа назад для красоты
+        appState.lastSmokeTime = Date.now() - (2 * 60 * 60 * 1000);
+        saveToStorage();
+      }
+    }
+
+    function saveToStorage() {
+      localStorage.setItem('smoke_tracker_data_v2', JSON.stringify(appState));
+    }
+
+    function getTodayString() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    // --- ОБРАБОТЧИКИ СОБЫТИЙ ---
+    function setupEventListeners() {
+      // Кнопка добавления сигареты
+      const btnAdd = document.getElementById('btn-add-smoke');
+      btnAdd.addEventListener('click', (e) => {
+        createRippleEffect(e, btnAdd);
+        addSmokeEvent();
+      });
+
+      // Отмена последнего
+      document.getElementById('btn-undo-smoke').addEventListener('click', undoLastSmokeEvent);
+
+      // Кнопка сохранения настроек
+      document.getElementById('btn-save-settings').addEventListener('click', saveConfig);
+
+      // Очистка логов
+      document.getElementById('btn-reset-data').addEventListener('click', resetAllData);
+
+      // Включение уведомлений
+      document.getElementById('noti-toggle-btn').addEventListener('click', toggleNotifications);
+
+      // Интерактивная синхронизация цен в настройках
+      const inputPackCost = document.getElementById('cfg-cost');
+      const inputPackSize = document.getElementById('cfg-pack-size');
+      const inputSingleCost = document.getElementById('cfg-single-cost');
+
+      // При изменении цены пачки пересчитываем одну штуку
+      inputPackCost.addEventListener('input', () => {
+        const cost = parseFloat(inputPackCost.value) || 0;
+        const size = parseInt(inputPackSize.value) || 1;
+        inputSingleCost.value = (cost / size).toFixed(2);
+      });
+
+      // При изменении размера пачки пересчитываем одну штуку
+      inputPackSize.addEventListener('input', () => {
+        const cost = parseFloat(inputPackCost.value) || 0;
+        const size = parseInt(inputPackSize.value) || 1;
+        inputSingleCost.value = (cost / size).toFixed(2);
+      });
+
+      // При изменении стоимости одной штуки пересчитываем всю пачку
+      inputSingleCost.addEventListener('input', () => {
+        const single = parseFloat(inputSingleCost.value) || 0;
+        const size = parseInt(inputPackSize.value) || 1;
+        inputPackCost.value = (single * size).toFixed(2);
+      });
+    }
+
+    // Эффект нажатия на кнопку
+    function createRippleEffect(event, button) {
+      const circle = document.createElement("span");
+      const diameter = Math.max(button.clientWidth, button.clientHeight);
+      const radius = diameter / 2;
+      const rect = button.getBoundingClientRect();
+      const clientX = event.clientX || (event.touches && event.touches[0].clientX);
+      const clientY = event.clientY || (event.touches && event.touches[0].clientY);
+
+      circle.style.width = circle.style.height = `${diameter}px`;
+      circle.style.left = `${clientX - rect.left - radius}px`;
+      circle.style.top = `${clientY - rect.top - radius}px`;
+      circle.classList.add("ripple-effect");
+
+      const prevRipple = button.getElementsByClassName("ripple-effect")[0];
+      if (prevRipple) prevRipple.remove();
+
+      button.appendChild(circle);
+    }
+
+    // --- ОСНОВНАЯ ЛОГИКА ТРЕКИНГА ---
+    function addSmokeEvent() {
+      const today = getTodayString();
+      
+      if (!appState.history[today]) {
+        appState.history[today] = { count: 0, timestamps: [] };
+      }
+      
+      appState.history[today].count += 1;
+      appState.history[today].timestamps.push(Date.now());
+      appState.lastSmokeTime = Date.now();
+      
+      saveToStorage();
+      updateUI();
+      
+      showToast("Запись добавлена. Каждая сигарета вредит вам!", "warning");
+      checkLimitAndNotify();
+    }
+
+    function undoLastSmokeEvent() {
+      const today = getTodayString();
+      const todayRecord = appState.history[today];
+      
+      if (!todayRecord || todayRecord.count === 0) {
+        showToast("Сегодня вы ещё ничего не курили", "info");
+        return;
+      }
+      
+      todayRecord.count -= 1;
+      todayRecord.timestamps.pop();
+      
+      // Перерасчет времени последнего курения
+      let lastTime = null;
+      Object.keys(appState.history).forEach(dateStr => {
+        const record = appState.history[dateStr];
+        if (record.timestamps && record.timestamps.length > 0) {
+          const maxVal = Math.max(...record.timestamps);
+          if (!lastTime || maxVal > lastTime) {
+            lastTime = maxVal;
+          }
+        }
+      });
+      
+      appState.lastSmokeTime = lastTime;
+      
+      saveToStorage();
+      updateUI();
+      showToast("Запись успешно удалена", "success");
+    }
+
+    function saveConfig() {
+      const limitInput = parseInt(document.getElementById('cfg-limit').value) || 5;
+      const costInput = parseFloat(document.getElementById('cfg-cost').value) || 35;
+      const sizeInput = parseInt(document.getElementById('cfg-pack-size').value) || 20;
+      const singleInput = parseFloat(document.getElementById('cfg-single-cost').value) || 1.75;
+
+      appState.settings.limit = limitInput;
+      appState.settings.costPerPack = costInput;
+      appState.settings.packSize = sizeInput;
+      appState.settings.costPerCigarette = singleInput;
+
+      saveToStorage();
+      updateUI();
+      showToast("Новые настройки сохранены", "success");
+    }
+
+    function resetAllData() {
+      if (confirm("Вы действительно хотите удалить все логи? Вся история очистится.")) {
+        appState = {
+          history: {},
+          lastSmokeTime: Date.now(),
+          settings: {
+            limit: 5,
+            avgPerDay: 15,
+            costPerPack: 35,
+            packSize: 20,
+            costPerCigarette: 1.75
+          }
+        };
+        saveToStorage();
+        updateUI();
+        showToast("Все логи были полностью стёрты", "info");
+      }
+    }
+
+    // --- ОБНОВЛЕНИЕ UI ---
+    function updateUI() {
+      const today = getTodayString();
+      const todayCount = appState.history[today] ? appState.history[today].count : 0;
+      const limit = appState.settings.limit;
+
+      // Главный экран
+      document.getElementById('stat-today').innerText = todayCount;
+      document.getElementById('stat-limit-badge').innerText = limit;
+
+      // Настройки
+      document.getElementById('cfg-limit').value = limit;
+      document.getElementById('cfg-cost').value = appState.settings.costPerPack;
+      document.getElementById('cfg-pack-size').value = appState.settings.packSize;
+      document.getElementById('cfg-single-cost').value = appState.settings.costPerCigarette;
+
+      // Лимит-бар
+      const progressPercent = Math.min((todayCount / limit) * 100, 100);
+      const progressBar = document.getElementById('limit-progress-bar');
+      progressBar.style.width = `${progressPercent}%`;
+
+      if (todayCount > limit) {
+        progressBar.classList.remove('bg-emerald-500');
+        progressBar.classList.add('bg-rose-500');
+        document.getElementById('stat-today').className = "text-3xl font-black text-rose-500";
+      } else {
+        progressBar.classList.remove('bg-rose-500');
+        progressBar.classList.add('bg-emerald-500');
+        document.getElementById('stat-today').className = "text-3xl font-black text-white";
+      }
+
+      // Подсчет финансов и разрушений
+      updateCalculationsAndHealth();
+      renderWeeklyChart();
+      renderDetailedHistory();
+    }
+
+    // Расчёт финансового ущерба и токсикологии
+    function updateCalculationsAndHealth() {
+      const today = getTodayString();
+      const todayCount = appState.history[today] ? appState.history[today].count : 0;
+      const singleCost = appState.settings.costPerCigarette;
+
+      // Потрачено сегодня
+      const spentToday = todayCount * singleCost;
+      document.getElementById('stat-money-spent-today').innerText = spentToday % 1 === 0 ? spentToday : spentToday.toFixed(2);
+
+      // Утеряно минут жизни сегодня
+      const lifeMinutesLostToday = todayCount * 11;
+      document.getElementById('stat-life-lost-today').innerText = `-${lifeMinutesLostToday} мин. жизни потеряно`;
+
+      // Потрачено и выкурено за всё время
+      let totalSmokedAllTime = 0;
+      Object.keys(appState.history).forEach(day => {
+        totalSmokedAllTime += appState.history[day].count;
+      });
+
+      const totalSpentAllTime = totalSmokedAllTime * singleCost;
+      document.getElementById('total-money-spent').innerText = totalSpentAllTime % 1 === 0 ? totalSpentAllTime : totalSpentAllTime.toFixed(2);
+      document.getElementById('total-smoked').innerText = totalSmokedAllTime;
+
+      // Перевод в пачки
+      const packsCount = (totalSmokedAllTime / appState.settings.packSize).toFixed(1);
+      document.getElementById('total-smoked-packs').innerText = `${packsCount} пачек`;
+
+      // Расчет общего утерянного времени жизни
+      const totalMinutesLost = totalSmokedAllTime * 11;
+      const daysLost = Math.floor(totalMinutesLost / (24 * 60));
+      const hoursLost = Math.floor((totalMinutesLost % (24 * 60)) / 60);
+      const minutesLost = totalMinutesLost % 60;
+
+      document.getElementById('total-life-lost-alltime').innerText = 
+        `${daysLost} дней, ${hoursLost} ч, ${minutesLost} мин.`;
+
+      // Токсикология
+      const totalNicotine = (totalSmokedAllTime * 0.8).toFixed(1); // 0.8 мг никотина в среднем на сигарету
+      const totalTar = (totalSmokedAllTime * 10).toFixed(0);      // 10 мг смолы на сигарету
+      
+      document.getElementById('health-nicotine').innerText = `${totalNicotine} мг`;
+      document.getElementById('health-tar').innerText = `${totalTar} мг`;
+
+      // Общие дни активности
+      const totalDays = Math.max(Object.keys(appState.history).length, 1);
+      document.getElementById('total-days-active').innerText = totalDays;
+
+      const avgDay = (totalSmokedAllTime / totalDays).toFixed(1);
+      document.getElementById('avg-smoked-day').innerText = avgDay;
+    }
+
+    // --- ТАЙМЕРЫ И ВОССТАНОВЛЕНИЕ ОРГАНИЗМА ---
+    function updateCleanTimer() {
+      if (!appState.lastSmokeTime) {
+        document.getElementById('clean-timer').innerText = "00д : 00ч : 00м : 00с";
+        return;
+      }
+
+      const diffMs = Date.now() - appState.lastSmokeTime;
+      if (diffMs < 0) {
+        document.getElementById('clean-timer').innerText = "00д : 00ч : 00м : 00с";
+        return;
+      }
+
+      const seconds = Math.floor((diffMs / 1000) % 60);
+      const minutes = Math.floor((diffMs / (1000 * 60)) % 60);
+      const hours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
+      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      document.getElementById('clean-timer').innerText = 
+        `${String(days).padStart(2, '0')}д : ${String(hours).padStart(2, '0')}ч : ${String(minutes).padStart(2, '0')}м : ${String(seconds).padStart(2, '0')}с`;
+      
+      updateHealthStatus(diffMs);
+    }
+
+    function updateHealthStatus(diffMs) {
+      const targets = {
+        pulse: 20 / 60,   // 20 минут
+        co: 12,           // 12 часов
+        taste: 48,        // 48 часов
+        breath: 72,       // 72 часа
+        circ: 14 * 24     // 14 дней (336 часов)
+      };
+
+      const diffHours = diffMs / (1000 * 60 * 60);
+
+      for (const [key, targetHours] of Object.entries(targets)) {
+        let percent = Math.floor((diffHours / targetHours) * 100);
+        if (percent > 100) percent = 100;
+
+        const valElem = document.getElementById(`health-val-${key}`);
+        const barElem = document.getElementById(`health-bar-${key}`);
+        
+        if (valElem && barElem) {
+          barElem.style.width = `${percent}%`;
+
+          if (percent === 100) {
+            valElem.className = "text-emerald-400 font-black flex items-center gap-1";
+            valElem.innerHTML = `<i data-lucide="check-circle" class="w-3.5 h-3.5 inline"></i> Восстановлено`;
+          } else {
+            valElem.className = "text-amber-400 font-black";
+            valElem.innerText = `${percent}%`;
+          }
+        }
+      }
+      lucide.createIcons();
+    }
+
+    // --- WEEKLY GRAPHIC ---
+    function renderWeeklyChart() {
+      const chartContainer = document.getElementById('chart-container');
+      const chartLabels = document.getElementById('chart-labels');
+      
+      chartContainer.innerHTML = '';
+      chartLabels.innerHTML = '';
+
+      const days = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        days.push(d);
+      }
+
+      let maxCount = 1;
+      const dayValues = days.map(day => {
+        const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+        const count = appState.history[key] ? appState.history[key].count : 0;
+        if (count > maxCount) maxCount = count;
+        return {
+          label: day.toLocaleDateString('ru-RU', { weekday: 'short' }),
+          dateNum: day.getDate(),
+          count: count
+        };
+      });
+
+      const limit = appState.settings.limit;
+
+      dayValues.forEach(item => {
+        const heightPercent = Math.min((item.count / Math.max(maxCount, limit)) * 100, 100);
+        const isOverLimit = item.count > limit;
+        const barColorClass = isOverLimit ? 'from-rose-500 to-rose-600' : 'from-emerald-400 to-emerald-500';
+
+        const colHtml = `
+          <div class="flex-1 flex flex-col items-center h-full justify-end group relative">
+            <span class="absolute -top-7 text-[10px] font-bold ${isOverLimit ? 'text-rose-400' : 'text-emerald-300'} bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700">
+              ${item.count}
+            </span>
+            <div class="w-8 rounded-t-lg bg-gradient-to-t ${barColorClass} shadow-lg transition-all duration-300" style="height: ${heightPercent}%"></div>
+          </div>
+        `;
+        chartContainer.insertAdjacentHTML('beforeend', colHtml);
+
+        const labelHtml = `
+          <div class="flex-1 text-center">
+            <span class="block text-slate-300 text-[10px] font-bold">${item.label}</span>
+            <span class="block text-slate-500 text-[9px] font-bold">${item.dateNum}</span>
+          </div>
+        `;
+        chartLabels.insertAdjacentHTML('beforeend', labelHtml);
+      });
+    }
+
+    // --- ДЕТАЛЬНАЯ ИСТОРИЯ ---
+    function renderDetailedHistory() {
+      const historyList = document.getElementById('history-list');
+      historyList.innerHTML = '';
+
+      const sortedDates = Object.keys(appState.history).sort((a, b) => new Date(b) - new Date(a));
+
+      if (sortedDates.length === 0) {
+        historyList.innerHTML = `<p class="text-sm text-slate-500 text-center py-4">История чиста. Начните вести логи.</p>`;
+        return;
+      }
+
+      sortedDates.forEach(dateStr => {
+        const record = appState.history[dateStr];
+        if (record.count === 0) return;
+
+        const formattedDate = new Date(dateStr).toLocaleDateString('ru-RU', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+
+        const limit = appState.settings.limit;
+        const isOver = record.count > limit;
+
+        const itemHtml = `
+          <div class="flex justify-between items-center bg-slate-950 border-2 ${isOver ? 'border-rose-950/60 bg-rose-950/10' : 'border-slate-800'} rounded-xl p-3">
+            <div>
+              <span class="text-xs font-black text-slate-100 block">${formattedDate}</span>
+              <span class="text-[9px] text-slate-400 block mt-0.5 font-bold">Лимит: ${limit} шт.</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="px-2.5 py-1 text-xs font-black rounded-lg ${isOver ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-900 text-slate-200 border border-slate-700'}">
+                ${record.count} шт (${(record.count * appState.settings.costPerCigarette).toFixed(1)} ₪)
+              </span>
+            </div>
+          </div>
+        `;
+        historyList.insertAdjacentHTML('beforeend', itemHtml);
+      });
+    }
+
+    function setRandomMotivation() {
+      const idx = Math.floor(Math.random() * motivationPhrases.length);
+      document.getElementById('motivation-text').innerText = motivationPhrases[idx];
+    }
+
+    // --- УВЕДОМЛЕНИЯ ---
+    function toggleNotifications() {
+      if (!("Notification" in window)) {
+        showToast("Веб-уведомления не поддерживаются вашим устройством.", "warning");
+        return;
+      }
+
+      if (Notification.permission === "granted") {
+        showToast("Уведомления уже активны и будут помогать вам контролировать привычку!", "info");
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then(permission => {
+          updateNotificationIcon();
+          if (permission === "granted") {
+            showToast("Уведомления включены!", "success");
+            sendSystemNotification("Следим за воздухом!", "Вы получите предупреждение при превышении суточного лимита.");
+          } else {
+            showToast("Доступ к пушам отклонен.", "warning");
+          }
+        });
+      } else {
+        showToast("Уведомления заблокированы. Включите их в настройках браузера.", "warning");
+      }
+    }
+
+    function updateNotificationIcon() {
+      const icon = document.getElementById('bell-icon');
+      if (!("Notification" in window)) {
+        icon.setAttribute('data-lucide', 'bell-off');
+      } else if (Notification.permission === "granted") {
+        icon.setAttribute('data-lucide', 'bell');
+        icon.parentElement.classList.remove('text-slate-300');
+        icon.parentElement.classList.add('text-emerald-400', 'border-emerald-500/30', 'bg-emerald-500/10');
+      } else {
+        icon.setAttribute('data-lucide', 'bell-off');
+      }
+      lucide.createIcons();
+    }
+
+    function checkLimitAndNotify() {
+      const today = getTodayString();
+      const count = appState.history[today] ? appState.history[today].count : 0;
+      const limit = appState.settings.limit;
+
+      if (count === limit) {
+        sendSystemNotification("⚠️ Лимит исчерпан!", "Вы выкурили дневной предел сигарет. Держитесь до конца дня!");
+      } else if (count > limit) {
+        sendSystemNotification("🚨 Лимит превышен!", "Вы вышли за пределы установленной нормы. Время остановиться!");
+      }
+    }
+
+    function sendSystemNotification(title, body) {
+      if ("Notification" in window && Notification.permission === "granted") {
+        try {
+          const options = { body: body, vibrate: [200, 100, 200] };
+          new Notification(title, options);
+        } catch (e) {
+          console.log("Ошибка нативного пуша. Выведен локальный тост.");
+        }
+      }
+    }
+
+    // --- СИСТЕМНЫЙ ТОСТ ---
+    let toastTimeout;
+    function showToast(message, type = "info") {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-message');
+      const toastIcon = document.getElementById('toast-icon');
+
+      toastMsg.innerText = message;
+      
+      if (type === "success") {
+        toastIcon.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>`;
+        toast.className = "fixed top-5 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900 border-2 border-emerald-500 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transition-all duration-300 opacity-100 translate-y-0 max-w-[90%] w-max";
+      } else if (type === "warning") {
+        toastIcon.innerHTML = `<i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500"></i>`;
+        toast.className = "fixed top-5 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900 border-2 border-rose-500 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transition-all duration-300 opacity-100 translate-y-0 max-w-[90%] w-max";
+      } else {
+        toastIcon.innerHTML = `<i data-lucide="info" class="w-5 h-5 text-sky-400"></i>`;
+        toast.className = "fixed top-5 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900 border-2 border-sky-500 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transition-all duration-300 opacity-100 translate-y-0 max-w-[90%] w-max";
+      }
+      
+      lucide.createIcons();
+
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.className = "fixed top-5 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900 border-2 border-slate-600 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transition-all duration-300 opacity-0 pointer-events-none translate-y-[-20px] max-w-[90%] w-max";
+      }, 3500);
+    }
+
+    // --- ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ---
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+
+      document.querySelectorAll('nav button').forEach(btn => {
+        btn.classList.remove('text-emerald-400');
+        btn.classList.add('text-slate-400');
+        const span = btn.querySelector('span');
+        if (span) {
+          span.classList.remove('font-bold');
+          span.classList.add('font-medium');
+        }
+      });
+
+      const targetTab = document.getElementById(`tab-${tabId}`);
+      if (targetTab) targetTab.classList.add('active');
+
+      const targetBtn = document.getElementById(`nav-${tabId}`);
+      if (targetBtn) {
+        targetBtn.classList.remove('text-slate-400');
+        targetBtn.classList.add('text-emerald-400');
+        const span = targetBtn.querySelector('span');
+        if (span) {
+          span.classList.remove('font-medium');
+          span.classList.add('font-bold');
+        }
+      }
+
+      if (tabId === 'main') setRandomMotivation();
+    }
+
+    // --- PWA И УСТАНОВКА НА ЭКРАН (ВИДЖЕТ) ---
+    function setupPWAInstallation() {
+      const banner = document.getElementById('pwa-install-banner');
+      const btnInstall = document.getElementById('btn-pwa-install');
+
+      window.addEventListener('beforeinstallprompt', (e) => {
+        // Предотвращаем стандартный баннер Chrome
+        e.preventDefault();
+        // Сохраняем событие
+        deferredPrompt = e;
+        // Показываем наш кастомный баннер установки
+        banner.classList.remove('hidden');
+      });
+
+      btnInstall.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        banner.classList.add('hidden');
+        // Показываем prompt
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User choice result: ${outcome}`);
+        deferredPrompt = null;
+      });
+
+      window.addEventListener('appinstalled', () => {
+        banner.classList.add('hidden');
+        showToast("Приложение успешно добавлено на ваш экран!", "success");
+      });
+    }
+
+    // --- КОПИРОВАНИЕ ФАЙЛОВ РАЗРАБОТЧИКА ---
+    function copyDeveloperAsset(type) {
+      let content = '';
+      if (type === 'manifest') {
+        content = `{
+  "short_name": "Воздух",
+  "name": "Чистый Воздух - Трекер и Калькулятор курения",
+  "icons": [
+    {
+      "src": "icon.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#030712",
+  "theme_color": "#030712",
+  "display": "standalone",
+  "orientation": "portrait"
+}`;
+      } else if (type === 'sw') {
+        content = `const CACHE_NAME = 'clean-air-v2';
+const ASSETS = [
+  './index.html',
+  'https://cdn.tailwindcss.com',
+  'https://unpkg.com/lucide@latest'
+];
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS);
+    })
+  );
+});
+
+self.addEventListener('fetch', (e) => {
+  e.respondWith(
+    caches.match(e.request).then((res) => {
+      return res || fetch(e.request);
+    })
+  );
+});`;
+      }
+
+      const tempTextArea = document.createElement("textarea");
+      tempTextArea.value = content;
+      document.body.appendChild(tempTextArea);
+      tempTextArea.select();
+      
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          showToast(`Код ${type === 'manifest' ? 'manifest.json' : 'service-worker.js'} скопирован в буфер!`, "success");
+        } else {
+          showToast("Не удалось скопировать файл", "warning");
+        }
+      } catch (err) {
+        showToast("Ошибка копирования", "warning");
+      }
+      
+      document.body.removeChild(tempTextArea);
+    }
+  </script>
+</body>
+</html>
